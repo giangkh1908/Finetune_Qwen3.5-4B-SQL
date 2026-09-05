@@ -11,11 +11,32 @@ echo "⚡ [1/3] Cài đặt môi trường Unsloth tối ưu tốc độ..."
 echo "===================================================================="
 export UNSLOTH_SKIP_TORCHVISION_CHECK=1
 
-pip install --upgrade pip
-pip install --no-deps "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
-pip install unsloth_zoo
-pip install --no-deps trl peft accelerate bitsandbytes
-pip install datasets pyyaml huggingface_hub
+# Tự động nhận diện hoặc cài đặt pip nếu môi trường container chưa có sẵn
+if command -v pip &> /dev/null; then
+    PIP_CMD="pip"
+elif command -v pip3 &> /dev/null; then
+    PIP_CMD="pip3"
+elif python3 -m pip --version &> /dev/null; then
+    PIP_CMD="python3 -m pip"
+else
+    echo "⚠️ Không tìm thấy pip. Đang tự động cài python3-pip qua apt..."
+    apt-get update && apt-get install -y python3-pip python3-dev
+    PIP_CMD="pip3"
+fi
+
+if command -v python &> /dev/null; then
+    PY_CMD="python"
+else
+    PY_CMD="python3"
+fi
+
+echo "Sử dụng pip: $PIP_CMD | Python: $PY_CMD"
+
+$PIP_CMD install --upgrade pip
+$PIP_CMD install --no-deps "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
+$PIP_CMD install unsloth_zoo
+$PIP_CMD install --no-deps trl peft accelerate bitsandbytes
+$PIP_CMD install datasets pyyaml huggingface_hub
 
 echo ""
 echo "===================================================================="
@@ -27,4 +48,4 @@ echo ""
 echo "===================================================================="
 echo "🔥 [3/3] Chạy script huấn luyện..."
 echo "===================================================================="
-python train_cloud_gpu.py "$@"
+$PY_CMD train_cloud_gpu.py "$@"

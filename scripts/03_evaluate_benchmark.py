@@ -7,10 +7,27 @@ import sqlite3
 import sys
 import time
 
+SCHEMA_DDL = """
+CREATE TABLE IF NOT EXISTS financial_facts (
+    ticker TEXT,
+    company_name TEXT,
+    year INTEGER,
+    report_type TEXT,
+    statement TEXT,
+    item_name TEXT,
+    item_name_ascii TEXT,
+    period_label TEXT,
+    value_vnd REAL,
+    raw_value TEXT,
+    unit TEXT,
+    page_no INTEGER,
+    source_doc TEXT
+);
+"""
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate Fine-tuned Qwen3.5-4B SQL Model")
     parser.add_argument("--model_path", type=str, default=None, help="Path to LoRA adapter or merged model")
-    parser.add_argument("--base_model", type=str, default="Qwen/Qwen3.5-4B", help="Base model identifier")
     parser.add_argument("--val_file", type=str, default="data/processed/val.jsonl", help="Path to val.jsonl")
     parser.add_argument("--db_path", type=str, default="data/financial.db", help="Path to SQLite db (optional)")
     parser.add_argument("--num_samples", type=int, default=20, help="Number of test samples (default 20, set 0 or -1 for all 182)")
@@ -30,12 +47,11 @@ def extract_think_and_sql(text: str):
 
     return think_text, sql_text
 
-def validate_sqlite_syntax(sql: str, db_conn=None):
+def validate_sqlite_syntax(sql: str, db_conn):
     if not sql or not sql.strip():
         return False, "Empty SQL"
-    conn = db_conn or sqlite3.connect(":memory:")
     try:
-        conn.execute(f"EXPLAIN {sql.rstrip(';')}")
+        db_conn.execute(f"EXPLAIN {sql.rstrip(';')}")
         return True, "OK"
     except Exception as e:
         return False, str(e)
@@ -91,34 +107,24 @@ def main():
         eval_samples = val_samples
     print(f"📁 Validation set: {val_file} (Evaluating {len(eval_samples)}/{total_val} samples)")
 
-    db_conn = None
+    # Khởi tạo DB connection
     if os.path.exists(args.db_path):
         db_conn = sqlite3.connect(args.db_path)
         print(f"🗄️ Connected to SQLite Database: {args.db_path}")
     else:
-        print(f"ℹ️ Database file '{args.db_path}' not found. Validating SQL syntax via in-memory SQLite.")
+        db_conn = sqlite3.connect(":memory:")
+        db_conn.executescript(SCHEMA_DDL)
+        print(f"ℹ️ Database file '{args.db_path}' not found. Initialized in-memory SQLite schema for syntax verification.")
 
     print("\n⏳ Loading model into GPU...")
     from unsloth import FastLanguageModel
 
-    is_adapter = os.path.exists(os.path.join(model_dir, "adapter_config.json"))
-    if is_adapter:
-        print(f"   -> Loading Base Model '{args.base_model}' + attaching LoRA Adapter...")
-        model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name=args.base_model,
-            max_seq_length=args.max_seq_length,
-            load_in_4bit=True,
-        )
-        model = FastLanguageModel.get_peft_model(model)
-        model.load_adapter(model_dir)
-    else:
-        print(f"   -> Loading Merged Model directly...")
-        model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name=model_dir,
-            max_seq_length=args.max_seq_length,
-            load_in_4bit=True,
-        )
-    
+    # Unsloth tự động nhận diện nếu model_dir là LoRA adapter hoặc Merged model
+    model, tokenizer = FastLanguageModel.from_pretrained(
+        model_name=model_dir,
+        max_seq_length=args.max_seq_length,
+        load_in_4bit=True,
+    )
     FastLanguageModel.for_inference(model)
     text_tok = getattr(tokenizer, "tokenizer", tokenizer)
     print("✅ Model loaded successfully! Ready for inference.")
@@ -162,7 +168,7 @@ def main():
             valid_syntax_count += 1
 
         exec_match = False
-        if db_conn and is_valid_syntax:
+        if os.path.exists(args.db_path) and is_valid_syntax:
             try:
                 cur = db_conn.cursor()
                 pred_rows = cur.execute(pred_sql).fetchall()
@@ -197,7 +203,7 @@ def main():
     print(f"⏱️  Tổng thời gian test     : {elapsed:.2f}s (Trung bình: {avg_latency:.2f}s / câu)")
     print(f"🧠 Tỷ lệ Reasoning <think> : {has_think_count}/{len(eval_samples)} ({has_think_count / len(eval_samples) * 100:.1f}%)")
     print(f"⚡ Tỷ lệ SQL hợp lệ cú pháp : {valid_syntax_count}/{len(eval_samples)} ({valid_syntax_count / len(eval_samples) * 100:.1f}%)")
-    if db_conn:
+    if os.path.exists(args.db_path):
         print(f"🎯 Execution Accuracy (EX)  : {execution_success_count}/{len(eval_samples)} ({execution_success_count / len(eval_samples) * 100:.1f}%)")
     
     print("\n" + "=" * 80)

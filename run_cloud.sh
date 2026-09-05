@@ -49,8 +49,9 @@ $PIP_CMD install unsloth_zoo
 $PIP_CMD install --no-deps trl peft accelerate bitsandbytes
 $PIP_CMD install datasets pyyaml huggingface_hub
 
-# Gỡ bỏ torchao xung đột phiên bản (Unsloth dùng bitsandbytes, không dùng torchao)
+# Gỡ bỏ triệt để torchao xung đột phiên bản (Unsloth dùng bitsandbytes, không cần torchao)
 $PIP_CMD uninstall -y torchao 2>/dev/null || true
+rm -rf /usr/local/lib/python3*/dist-packages/torchao* /usr/local/lib/python3*/site-packages/torchao* ~/.local/lib/python3*/site-packages/torchao* 2>/dev/null || true
 
 echo ""
 echo "===================================================================="

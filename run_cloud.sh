@@ -33,6 +33,17 @@ fi
 echo "Sử dụng pip: $PIP_CMD | Python: $PY_CMD"
 
 $PIP_CMD install --upgrade pip
+
+# Kiểm tra xem PyTorch hiện tại có nhận CUDA không
+echo "🔍 Kiểm tra tương thích CUDA của PyTorch..."
+CUDA_OK=$($PY_CMD -c "import torch; print(torch.cuda.is_available())" 2>/dev/null || echo "False")
+
+if [ "$CUDA_OK" != "True" ]; then
+    echo "⚠️ PyTorch hiện tại không nhận GPU hoặc lệch phiên bản CUDA driver."
+    echo "🔄 Đang cài đặt PyTorch tương thích CUDA 12.4 (hỗ trợ Driver 570+)..."
+    $PIP_CMD install --upgrade --force-reinstall --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+fi
+
 $PIP_CMD install --no-deps "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
 $PIP_CMD install unsloth_zoo
 $PIP_CMD install --no-deps trl peft accelerate bitsandbytes
@@ -43,6 +54,7 @@ echo "===================================================================="
 echo "🖥️  [2/3] Kiểm tra thông tin GPU..."
 echo "===================================================================="
 nvidia-smi
+$PY_CMD -c "import torch; print(f'✅ CUDA Available: {torch.cuda.is_available()} | GPU: {torch.cuda.get_device_name(0)}')"
 
 echo ""
 echo "===================================================================="

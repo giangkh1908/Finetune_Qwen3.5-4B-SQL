@@ -28,10 +28,10 @@ def parse_args():
     parser.add_argument("--grad_accum", type=int, default=4, help="Gradient accumulation steps (effective batch = 8)")
     parser.add_argument("--lr", type=float, default=2e-4, help="Learning rate")
     parser.add_argument("--max_seq_length", type=int, default=2048, help="Max sequence length")
-    parser.add_argument("--hf_token", type=str, default=None, help="Hugging Face Write Token")
+    parser.add_argument("--hf_token", type=str, default=os.environ.get("HF_TOKEN", None), help="Hugging Face Write Token (or env HF_TOKEN)")
     parser.add_argument("--hf_username", type=str, default=None, help="Hugging Face Username")
-    parser.add_argument("--push_to_hub", action="store_true", help="Tự động push lên Hugging Face sau khi train")
-    parser.add_argument("--export_gguf", action="store_true", help="Xuất bản GGUF (q4_k_m) cho Ollama")
+    parser.add_argument("--push_to_hub", action="store_true", default=False, help="Tự động push lên Hugging Face sau khi train")
+    parser.add_argument("--export_gguf", action="store_true", default=False, help="Xuất bản GGUF (q4_k_m) cho Ollama")
     return parser.parse_args()
 
 def main():
@@ -49,6 +49,16 @@ def main():
     vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
     bf16_ok = torch.cuda.is_bf16_supported()
     print(f"🖥️  GPU: {device_name} | VRAM: {vram_gb:.1f} GB | BF16 Supported: {bf16_ok}")
+
+    # Đăng nhập Hugging Face sớm để tải model tốc độ cao và rate limit cao
+    token = args.hf_token or os.environ.get("HF_TOKEN")
+    if token:
+        try:
+            from huggingface_hub import login
+            login(token=token)
+            print("🔑 Đã xác thực tài khoản Hugging Face thành công (High-Speed Download).")
+        except Exception as e:
+            print(f"⚠️ Không thể đăng nhập HF sớm: {e}")
 
     # 2. Tìm file dữ liệu
     train_path = args.train_file

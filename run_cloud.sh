@@ -49,6 +49,9 @@ $PIP_CMD install unsloth_zoo
 $PIP_CMD install --no-deps trl peft accelerate bitsandbytes
 $PIP_CMD install datasets pyyaml huggingface_hub
 
+# Gỡ bỏ torchao xung đột phiên bản (Unsloth dùng bitsandbytes, không dùng torchao)
+$PIP_CMD uninstall -y torchao 2>/dev/null || true
+
 echo ""
 echo "===================================================================="
 echo "🖥️  [2/3] Kiểm tra thông tin GPU..."
